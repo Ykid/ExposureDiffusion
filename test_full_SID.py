@@ -5,7 +5,7 @@ import torch.backends.cudnn as cudnn
 import dataset.sid_dataset as datasets
 import dataset
 import noise
-
+from tqdm import tqdm
 opt = BaseOptions().parse()
 
 cudnn.benchmark = True
@@ -59,7 +59,8 @@ for ratio, dataloader in zip(expo_ratio, eval_dataloaders):
     #     SSIM_list.append(res["SSIM"])
     # print(PSNR_list)
     # print(SSIM_list)
-    
+    # for _ in tqdm(dataloader):
+        # pass
     #engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=0, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
     # engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=1, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
     engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=opt.iter_num, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}") 
