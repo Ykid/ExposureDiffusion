@@ -28,3 +28,4 @@ rawpy/
 !images_github/
 output/
 output_crop
+**/.ipynb_checkpoints
