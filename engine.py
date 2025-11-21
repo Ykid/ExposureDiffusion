@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any, Union
 
 class Engine(object):
-    def __init__(self, opt):
+    def __init__(self, opt, log_to_file=False):
         self.opt = opt
         self.writer = None
         self.model = None
         self.best_val_loss = 1e6
+        self.log_to_file = log_to_file
         self.__setup()
 
     def __setup(self):
@@ -85,10 +86,11 @@ class Engine(object):
         with torch.no_grad():
             for i, data in enumerate(val_loader):                
                 index = model.eval(data, savedir=savedir, **kwargs)
-                log_entry = {
-                    "file_name": data['fn'][0], "metric": index
-                }
-                append_jsonl(log_entry, join("/home/david.weijiecai/computational_imaging/ExposureDiffusion", f'eval_results.jsonl'))
+                if self.log_to_file:
+                    log_entry = {
+                        "file_name": data['fn'][0], "metric": index
+                    }
+                    append_jsonl(log_entry, join("/home/david.weijiecai/computational_imaging/ExposureDiffusion", f'eval_results.jsonl'))
                 avg_meters.update(index)
                 
                 util.progress_bar(i, len(val_loader), str(avg_meters))
