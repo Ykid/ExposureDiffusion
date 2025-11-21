@@ -6,6 +6,9 @@ import os
 import sys
 from os.path import join
 from torchvision.utils import save_image
+import json
+from pathlib import Path
+from typing import Any, Union
 
 class Engine(object):
     def __init__(self, opt):
@@ -82,7 +85,10 @@ class Engine(object):
         with torch.no_grad():
             for i, data in enumerate(val_loader):                
                 index = model.eval(data, savedir=savedir, **kwargs)
-                # print(data['fn'], index)
+                log_entry = {
+                    "file_name": data['fn'][0], "metric": index
+                }
+                append_jsonl(log_entry, join("/home/david.weijiecai/computational_imaging/ExposureDiffusion", f'eval_results.jsonl'))
                 avg_meters.update(index)
                 
                 util.progress_bar(i, len(val_loader), str(avg_meters))
@@ -128,3 +134,21 @@ class Engine(object):
     @epoch.setter
     def epoch(self, e):
         self.model.epoch = e
+
+def append_jsonl(entry: Any, file_path: Union[str, Path]) -> None:
+    """
+    Append a single JSON-serializable entry to a JSONL file.
+
+    Parameters
+    ----------
+    entry : Any
+        The object to log (dict, list, etc.). Must be JSON-serializable.
+    file_path : str or pathlib.Path
+        Path to the .jsonl file to append to. The file will be created if it doesn't exist.
+    """
+    path = Path(file_path)
+
+    # Open in append mode so we never overwrite existing logs
+    with path.open("a", encoding="utf-8") as f:
+        json.dump(entry, f, ensure_ascii=False)
+        f.write("\n")
