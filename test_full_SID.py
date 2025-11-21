@@ -63,4 +63,4 @@ for ratio, dataloader in zip(expo_ratio, eval_dataloaders):
         # pass
     #engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=0, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
     # engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=1, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
-    engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=opt.iter_num, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}") 
+    engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=False, iter_num=opt.iter_num, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}") 
