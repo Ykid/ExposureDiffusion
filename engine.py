@@ -84,7 +84,8 @@ class Engine(object):
         model = self.model
         opt = self.opt
         with torch.no_grad():
-            for i, data in enumerate(val_loader):                
+            for i, data in enumerate(val_loader): 
+                # import pdb; pdb.set_trace()               
                 index = model.eval(data, savedir=savedir, **kwargs)
                 if self.log_to_file:
                     log_entry = {
