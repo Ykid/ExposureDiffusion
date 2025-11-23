@@ -1,3 +1,4 @@
+from pathlib import Path
 from options.eld.base_options import BaseOptions 
 from engine import Engine
 import torch
@@ -63,4 +64,6 @@ for ratio, dataloader in zip(expo_ratio, eval_dataloaders):
         # pass
     #engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=0, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
     # engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=1, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
-    engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=False, iter_num=opt.iter_num, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}") 
+    save_dir = "/home/david.weijiecai/computational_imaging/ExposureDiffusion/output_v2"
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=False, iter_num=opt.iter_num, savedir=save_dir) 
