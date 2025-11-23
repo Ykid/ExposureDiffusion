@@ -29,3 +29,6 @@ rawpy/
 output/
 output_crop
 **/.ipynb_checkpoints
+output_v2/
+run.log
+run_v2.log
