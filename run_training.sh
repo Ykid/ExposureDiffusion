@@ -1,0 +1,13 @@
+CUDA_VISIBLE_DEVICES=0 python train_syn.py \
+        --name sid_Pg_naf2 \
+        --include 4 \
+        --noise P+g \
+        --model eld_iter_model \
+        --with_photon \
+        --adaptive_res_and_x0 \
+        --iter_num 2 \
+        --epoch 300 \
+        --auxloss \
+        --continuous_noise \
+        --adaptive_loss \
+        --netG naf2
