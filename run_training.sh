@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 python train_syn.py \
+CUDA_VISIBLE_DEVICES=0 ED_LMDB_CPU_COUNT=1 ED_PREFETCH_FACTOR=1 python train_syn.py \
         --name sid_Pg_naf2 \
         --include 4 \
         --noise P+g \
@@ -10,4 +10,4 @@ CUDA_VISIBLE_DEVICES=0 python train_syn.py \
         --auxloss \
         --continuous_noise \
         --adaptive_loss \
-        --netG naf2
+        --netG naf2 --batchSize 2 --nThreads 4

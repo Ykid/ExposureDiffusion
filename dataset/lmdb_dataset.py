@@ -7,7 +7,23 @@ import pickle
 class LMDBDataset(data.Dataset):
     def __init__(self, db_path, noise_model=None, size=None, repeat=1, ratio_used_list=None):
         import lmdb
+        import multiprocessing
+        import os
         self.db_path = db_path
+        try:
+            env_val = os.environ.get('ED_LMDB_CPU_COUNT')
+            if env_val is not None:
+                n = int(env_val)
+                if n < 1:
+                    raise ValueError("ED_LMDB_CPU_COUNT must be >= 1")
+                self.num_cpus = n
+            else:
+                self.num_cpus = 1
+        except Exception as e:
+            print(f"[i] Warning: {e}")
+            self.num_cpus = 1
+        
+        print(f'[i] LMDB num_cpus: {self.num_cpus}')
         self.env = lmdb.open(db_path, max_readers=1, readonly=True, lock=False,
                              readahead=False, meminit=False)
         with self.env.begin(write=False) as txn:
