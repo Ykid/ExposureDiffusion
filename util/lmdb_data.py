@@ -248,7 +248,7 @@ def create_lmdb_train(
 
 def create_sony_dataset(num_samples=None): # synthetic data
     print('create sid sony dataset...')
-    # sourcedir = '/media/kaixuan/DATA/Papers/Code/Data/Raw/SID/Sony/long'
+    sourcedir = '/home/david.weijiecai/computational_imaging/ExposureDiffusion/datasets/SID/Sony'
     sourcedir_ = join(sourcedir, 'long')
 
     fns = read_paired_fns('./dataset/Sony_train.txt')
@@ -365,8 +365,8 @@ def create_sony_dataset_SRGB_paired(num_samples=None): # paired real data
 
 
 if __name__ == '__main__':        
-    # create_sony_dataset()
-    create_adobe_dataset(161) # 161
+    create_sony_dataset()
+    # create_adobe_dataset(161) # 161
     # create_sony_dataset_paired()
     # create_sony_dataset_SRGB(10)
     # create_sony_dataset_SRGB_paired(10)
