@@ -179,7 +179,7 @@ class SIDDataset(BaseDataset):
 
 
 def compute_expo_ratio(input_fn, target_fn):        
-    in_exposure = float(input_fn.split('_')[-1][:-5])
+    in_exposure = float(input_fn.split('_')[-1].split("s.")[0])
     gt_exposure = float(target_fn.split('_')[-1][:-5])
     ratio = min(gt_exposure / in_exposure, 300)
     return ratio
