@@ -1,3 +1,13 @@
+# The initial version
+if [ ! -f .env ]
+then
+  export $(cat .env | xargs)
+fi
+
+# My favorite from the comments. Thanks @richarddewit & others!
+set -a && source .env && set +a
+
+# Evaluation code
 # python3 test_SID.py \
 #     --model eld_iter_model \
 #     --model_path "/home/david.weijiecai/computational_imaging/sid_PGru.pt" \
@@ -19,3 +29,10 @@ python3 test_full_SID.py --model eld_iter_model \
     --include 4 --with_photon \
     --adaptive_res_and_x0 -r \
     --iter_num 2 --netG naf2
+
+# try unet
+# python3 test_SID.py --model eld_iter_model \
+#     --model_path "/home/david.weijiecai/computational_imaging/sid_PGru.pt" \
+#     --include 4 --with_photon \
+#     --adaptive_res_and_x0 -r \
+#     --iter_num 2 --netG unet
