@@ -11,9 +11,11 @@ import noise
 from util import process
 from dataset.sid_dataset import worker_init_fn
 import os
+import wandb
 
 def main():
     opt = TrainOptions().parse()
+    wandb_run = wandb.init(project="ExposureDiffusion", name=opt.name, config=vars(opt))
     print("training options:", opt)
     import pdb; pdb.set_trace()
     cudnn.benchmark = True
@@ -94,7 +96,7 @@ def main():
 
 
     """Main Loop"""
-    engine = Engine(opt)
+    engine = Engine(opt, wandb_run=wandb_run)
 
     print('[i] using noise model {}'.format(opt.noise))
 

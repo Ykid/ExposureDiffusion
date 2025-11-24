@@ -11,12 +11,13 @@ from pathlib import Path
 from typing import Any, Union
 
 class Engine(object):
-    def __init__(self, opt, log_to_file=False):
+    def __init__(self, opt, log_to_file=False, wandb_run=None):
         self.opt = opt
         self.writer = None
         self.model = None
         self.best_val_loss = 1e6
         self.log_to_file = log_to_file
+        self.wandb_run = wandb_run
         self.__setup()
 
     def __setup(self):
@@ -56,6 +57,7 @@ class Engine(object):
             if not opt.no_log:
                 util.write_loss(self.writer, 'train', avg_meters, iterations)
 
+            self.log_train_parameters(avg_meters)
             self.iterations += 1
     
         self.epoch += 1
@@ -95,6 +97,7 @@ class Engine(object):
                 avg_meters.update(index)
                 
                 util.progress_bar(i, len(val_loader), str(avg_meters))
+                self.log_eval_parameters(avg_meters)
                 
         if not opt.no_log:
             util.write_loss(self.writer, join('eval', dataset_name), avg_meters, self.epoch)
@@ -137,6 +140,23 @@ class Engine(object):
     @epoch.setter
     def epoch(self, e):
         self.model.epoch = e
+    
+    def log_train_parameters(self, avg_meters):
+        if self.wandb_run is not None:
+            dict = {}
+            for key in avg_meters.keys():
+                meter = avg_meters[key]
+                dict[f"train/{key}"] = meter
+            self.wandb_run.log(dict)
+    
+    def log_eval_parameters(self, avg_meters):
+        if self.wandb_run is not None:
+            dict = {}
+            for key in avg_meters.keys():
+                meter = avg_meters[key]
+                dict[f"val/{key}"] = meter
+            self.wandb_run.log(dict)
+        
 
 def append_jsonl(entry: Any, file_path: Union[str, Path]) -> None:
     """
