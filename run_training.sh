@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 ED_LMDB_CPU_COUNT=1 ED_PREFETCH_FACTOR=1 python train_syn.py \
+CUDA_VISIBLE_DEVICES=0 ED_LMDB_CPU_COUNT=1 ED_PREFETCH_FACTOR=1 ED_SAVE_EPOCH_FREQ=5 python train_syn.py \
         --name sid_Pg_naf2 \
         --include 4 \
         --noise P+g \
