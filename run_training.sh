@@ -1,4 +1,4 @@
-# The initial version
+# # The initial version
 # if [ ! -f .env ]
 # then
 #   export $(cat .env | xargs)
@@ -24,13 +24,13 @@
 
 
 # The initial version
-if [ ! -f .env ]
+if [ ! -f .env_debug ]
 then
   export $(cat .env_debug | xargs)
 fi
 
 # My favorite from the comments. Thanks @richarddewit & others!
-set -a && source .env && set +a
+set -a && source .env_debug && set +a
 # overfitting
 python -m pdb train_syn.py \
         --name sid_Pg_naf2 \
