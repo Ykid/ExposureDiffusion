@@ -13,6 +13,7 @@ import random
 from torchvision.utils import save_image 
 
 BaseDataset = torchdata.Dataset
+from dataset.blur_utils import random_motion_kernel, apply_kernel_bayer, add_poisson_gaussian_noise, sample_lambda_pair, lambda_range_from_exposure
 
 
 def worker_init_fn(worker_id):                                                          
@@ -397,6 +398,278 @@ class ELDTrainDataset(BaseDataset):
         return size
 
 
+# class ConditionalExposureDataset(BaseDataset):
+#     """
+#     Dataset that returns blurred exposure steps and a conditioned measurement Y.
+#     Outputs:
+#         X_t_blur: blurred + noisy sample at lambda_t
+#         Y: blurred + noisy measurement at lambda_T
+#         X_ref: clean reference patch
+#         lambda_t, lambda_T, lambda_ref, ISO, kernel, kernel_id
+#     """
+#     def __init__(
+#         self,
+#         ref_dataset,
+#         noise_model,
+#         lambda_T_range=(1/30, 1/8),
+#         lambda_ref=1.0,
+#         kernel_size_range=(15, 31),
+#         identity_prob=0.05,
+#         sample_log_exposure=True,
+#         augment=False,
+#         seed=None,
+#     ):
+#         super(ConditionalExposureDataset, self).__init__()
+#         self.ref_dataset = ref_dataset
+#         self.noise_model = noise_model
+#         self.lambda_T_range = lambda_T_range
+#         self.lambda_ref = lambda_ref
+#         self.kernel_size_range = kernel_size_range
+#         self.identity_prob = identity_prob
+#         self.sample_log_exposure = sample_log_exposure
+#         self.augment = augment
+#         self.rng = np.random.default_rng(seed)
+
+#     def _sample_noise_params(self, iso):
+#         if self.noise_model is None:
+#             return {
+#                 "K": 1.0,
+#                 "g_scale": 0.0,
+#                 "sigma_r": 0.0,
+#                 "saturation_level": 16383 - 800,
+#             }
+#         return self.noise_model.sample_params_for_iso(
+#             ISO=iso,
+#             ratio=self.lambda_ref,
+#             continuous=True,
+#         )
+
+#     def _maybe_augment(self, input_arrs):
+#         if not self.augment:
+#             return input_arrs
+#         if np.random.randint(2, size=1)[0] == 1:
+#             input_arrs = [np.flip(x, axis=1) for x in input_arrs]
+#         if np.random.randint(2, size=1)[0] == 1:
+#             input_arrs = [np.flip(x, axis=2) for x in input_arrs]
+#         if np.random.randint(2, size=1)[0] == 1:
+#             input_arrs = [np.transpose(x, (0, 2, 1)) for x in input_arrs]
+#         return input_arrs
+
+#     def __getitem__(self, i):
+#         x_ref, meta = self.ref_dataset[i]
+#         print("meta:", meta)
+#         iso = -1
+#         wb = None
+#         ccm = None
+#         exposure = None
+#         lambda_range_meta = None
+#         if isinstance(meta, dict):
+#             iso = meta.get("ISO", meta.get("iso", -1))
+#             wb = meta.get("wb", None)
+#             ccm = meta.get("ccm", None)
+#             exposure = meta.get("exposure", None)
+#             lambda_range_meta = meta.get("lambda_T_range", None)
+#         elif isinstance(meta, (list, tuple)) and len(meta) >= 3:
+#             iso = meta[2]
+#             wb = meta[0]
+#             ccm = meta[1]
+#         iso = 100 if iso is None or iso < 0 else iso
+
+#         kernel, kernel_id = random_motion_kernel(
+#             kernel_size_range=self.kernel_size_range,
+#             identity_prob=self.identity_prob,
+#             rng=self.rng,
+#         )
+#         x_blur = apply_kernel_bayer(x_ref, kernel)
+
+#         lambda_t, lambda_T = sample_lambda_pair(
+#             lambda_ref=self.lambda_ref,
+#             lambda_T_range=self.lambda_T_range,
+#             log_space=self.sample_log_exposure,
+#             rng=self.rng,
+#         )
+
+#         params_T = self._sample_noise_params(iso)
+#         params_t = self._sample_noise_params(iso)
+#         y = add_poisson_gaussian_noise(
+#             x_blur * (lambda_T / self.lambda_ref),
+#             params_T,
+#             rng=self.rng,
+#         )
+#         x_t_blur = add_poisson_gaussian_noise(
+#             x_blur * (lambda_t / self.lambda_ref),
+#             params_t,
+#             rng=self.rng,
+#         )
+
+#         x_t_blur, y, x_ref_clean, x_blur_clean = [
+#             np.ascontiguousarray(arr.astype(np.float32))
+#             for arr in self._maybe_augment([x_t_blur, y, x_ref, x_blur])
+#         ]
+
+#         return {
+#             "X_t_blur": x_t_blur,
+#             "Y": y,
+#             "X_ref": x_ref_clean,
+#             "X_blur": x_blur_clean,
+#             "lambda_t": float(lambda_t),
+#             "lambda_T": float(lambda_T),
+#             "lambda_ref": float(self.lambda_ref),
+#             "ISO": iso,
+#             "kernel": kernel,
+#             "kernel_id": kernel_id,
+#             "noise_params_t": params_t,
+#             "noise_params_T": params_T,
+#             "wb": wb,
+#             "ccm": ccm,
+#         }
+
+#     def __len__(self):
+#         return len(self.ref_dataset)
+
+
+class SynDatasetV2(BaseDataset):
+    """
+    Blur + noise synthesizer that wraps a clean reference dataset (e.g., LMDBDataset).
+    Returns the full tuple needed by the conditional training loop.
+    """
+    def __init__(
+        self,
+        ref_dataset,
+        noise_model,
+        lambda_T_range=(1/30, 1/8),
+        lambda_ref=1.0,
+        kernel_size_range=(15, 31),
+        identity_prob=0.05,
+        sample_log_exposure=True,
+        augment=False,
+        seed=None,
+    ):
+        super(SynDatasetV2, self).__init__()
+        self.ref_dataset = ref_dataset
+        self.noise_model = noise_model
+        self.lambda_T_range = lambda_T_range
+        self.lambda_ref = lambda_ref
+        self.kernel_size_range = kernel_size_range
+        self.identity_prob = identity_prob
+        self.sample_log_exposure = sample_log_exposure
+        self.augment = augment
+        self.rng = np.random.default_rng(seed)
+
+    def _sample_noise_params(self, iso, ratio=None):
+        if self.noise_model is None:
+            return {
+                "K": 1.0,
+                "g_scale": 0.0,
+                "sigma_r": 0.0,
+                "saturation_level": 16383 - 800,
+                "ratio": ratio if ratio is not None else self.lambda_ref,
+            }
+        print("Sampling noise params for ISO:", iso, "ratio:", ratio if ratio is not None else self.lambda_ref)
+        return self.noise_model.sample_params_for_iso(
+            ISO=iso,
+            ratio=ratio if ratio is not None else self.lambda_ref,
+            continuous=True,
+        )
+
+    def _maybe_augment(self, arrs):
+        if not self.augment:
+            return arrs
+        if np.random.randint(2, size=1)[0] == 1:
+            arrs = [np.flip(x, axis=1) for x in arrs]
+        if np.random.randint(2, size=1)[0] == 1:
+            arrs = [np.flip(x, axis=2) for x in arrs]
+        if np.random.randint(2, size=1)[0] == 1:
+            arrs = [np.transpose(x, (0, 2, 1)) for x in arrs]
+        return arrs
+
+    def __getitem__(self, i):
+        x_ref, meta = self.ref_dataset[i]
+        iso = -1
+        wb = None
+        ccm = None
+        exposure = None
+        lambda_range_meta = None
+        lambda_ref_local = self.lambda_ref
+        if isinstance(meta, dict):
+            iso = meta.get("ISO", meta.get("iso", -1))
+            wb = meta.get("wb", None)
+            ccm = meta.get("ccm", None)
+            exposure = meta.get("exposure", None)
+            lambda_range_meta = meta.get("lambda_T_range", None)
+            lambda_ref_local = meta.get("lambda_ref", lambda_ref_local)
+        elif isinstance(meta, (list, tuple)) and len(meta) >= 3:
+            iso = meta[2]
+            wb = meta[0]
+            ccm = meta[1]
+        # print("meta:", meta)
+        # print("exposure:", exposure)
+        iso = 100 if iso is None or iso < 0 else iso
+
+
+        if exposure is not None:
+            lambda_range = lambda_range_from_exposure(exposure)
+        else:
+            # print("using default lambda range")
+            lambda_range = self.lambda_T_range
+
+        kernel, kernel_id = random_motion_kernel(
+            kernel_size_range=self.kernel_size_range,
+            identity_prob=self.identity_prob,
+            rng=self.rng,
+        )
+        x_blur = apply_kernel_bayer(x_ref, kernel)
+
+        # print("lambda range:", lambda_range, "exposure:", exposure, "lambda_ref_local:", lambda_ref_local)
+        lambda_t, lambda_T = sample_lambda_pair(
+            lambda_ref=lambda_ref_local,
+            lambda_T_range=lambda_range,
+            log_space=self.sample_log_exposure,
+            rng=self.rng,
+        )
+
+        # Condition measurement at lambda_T, step sample at lambda_t
+        params_T = self._sample_noise_params(iso, ratio=lambda_ref_local / lambda_T)
+        params_t = self._sample_noise_params(iso, ratio=lambda_ref_local / lambda_t)
+        print("lambda_T_range:", lambda_T, "lambda_t:", lambda_t, 'lambda_ref_local:', lambda_ref_local)
+        y = add_poisson_gaussian_noise(
+            x_blur * (lambda_T / lambda_ref_local),
+            params_T,
+            rng=self.rng,
+        )
+        x_t_blur = add_poisson_gaussian_noise(
+            x_blur * (lambda_t / lambda_ref_local),
+            params_t,
+            rng=self.rng,
+        )
+
+        x_t_blur, y, x_ref_clean, x_blur_clean = [
+            np.ascontiguousarray(arr.astype(np.float32))
+            for arr in self._maybe_augment([x_t_blur, y, x_ref, x_blur])
+        ]
+
+        return {
+            "X_t_blur": x_t_blur,
+            "Y": y,
+            "X_ref": x_ref_clean,
+            "X_blur": x_blur_clean,
+            "lambda_t": float(lambda_t),
+            "lambda_T": float(lambda_T),
+            "lambda_ref": float(lambda_ref_local),
+            "ISO": iso,
+            "kernel": kernel,
+            "kernel_id": kernel_id,
+            "noise_params_t": params_t,
+            "noise_params_T": params_T,
+            "wb": wb,
+            "ccm": ccm,
+            "exposure" : exposure,
+        }
+
+    def __len__(self):
+        return len(self.ref_dataset)
+
+
 class ELDEvalDataset(BaseDataset):
     def __init__(self, basedir, camera_suffix, noiser_maker, scenes=None, img_ids=None):
         super(ELDEvalDataset, self).__init__()
@@ -448,4 +721,3 @@ class ELDEvalDataset(BaseDataset):
 
     def __len__(self):
         return len(self.scenes) * len(self.img_ids)
-

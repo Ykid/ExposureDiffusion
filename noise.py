@@ -150,7 +150,16 @@ class NoiseModelBase:  # base class
         if params is None:
             K, g_scale, saturation_level, ratio, sigma_r, G_scale, G_shape = self._sample_params(continuous)
         else:
-            K, g_scale, saturation_level, ratio, sigma_r, G_scale, G_shape = params
+            if isinstance(params, dict):
+                K = params["K"]
+                g_scale = params.get("g_scale", 0)
+                saturation_level = params.get("saturation_level", 16383 - 800)
+                ratio = params.get("ratio", 1.0)
+                sigma_r = params.get("sigma_r", 0)
+                G_scale = params.get("G_scale", 0)
+                G_shape = params.get("G_shape", [0])
+            else:
+                K, g_scale, saturation_level, ratio, sigma_r, G_scale, G_shape = params
 
         y = y * saturation_level
         y = y / ratio
@@ -217,6 +226,56 @@ class NoiseModel(NoiseModelBase):
         Kmax = camera_params['Kmax']
         k = (ISO - 100)/(6400-100) *(Kmax-Kmin)+Kmin
         return k
+
+    def sample_params_for_iso(self, ISO, ratio=None, continuous=False):
+        """
+        Sample noise parameters conditioned on ISO so downstream code can
+        generate Poisson–Gaussian noise without guessing K.
+        """
+        camera = np.random.choice(self.cameras)
+        camera_params_full = self.camera_params[camera]
+        profiles = ['Profile-1']
+
+        G_shape = camera_params_full["G_shape"]
+        Kmin = camera_params_full['Kmin']
+        Kmax = camera_params_full['Kmax']
+        profile_params = camera_params_full[np.random.choice(profiles)]
+
+        K = np.clip(self.ISO_to_K(ISO), Kmin, Kmax)
+        log_K = np.log(np.maximum(K, 1e-8))
+
+        log_g_scale = (
+            np.random.standard_normal() * profile_params['g_scale']['sigma']
+            + profile_params['g_scale']['slope'] * log_K
+            + profile_params['g_scale']['bias']
+        )
+        log_r = (
+            np.random.standard_normal() * profile_params['R_scale']['sigma']
+            + profile_params['R_scale']['slope'] * log_K
+            + profile_params['R_scale']['bias']
+        )
+        log_G_scale = (
+            np.random.standard_normal() * profile_params['G_scale']['sigma']
+            + profile_params['G_scale']['slope'] * log_K
+            + profile_params['G_scale']['bias']
+        )
+
+        if ratio is None:
+            if continuous:
+                ratio = np.random.uniform(low=20, high=300)
+            else:
+                ratio = np.random.uniform(low=100, high=300)
+
+        return {
+            "K": float(np.exp(log_K)),
+            "g_scale": float(np.exp(log_g_scale)),
+            "saturation_level": 16383 - 800,
+            "ratio": float(ratio),
+            "sigma_r": float(np.exp(log_r)),
+            "G_scale": float(np.exp(log_G_scale)),
+            "G_shape": G_shape,
+            "camera": camera,
+        }
     
     def _sample_params(self, continuous):
         camera = np.random.choice(self.cameras)

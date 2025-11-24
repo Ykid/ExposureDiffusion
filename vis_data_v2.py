@@ -40,7 +40,7 @@ def main():
     repeat = 1 if opt.max_dataset_size is None else 1288 // opt.max_dataset_size
 
     ref_data = LMDBDataset(
-        str(traindir / 'SID_Sony_Raw.db'),
+        str(traindir / 'SID_Sony_Raw_Meta.db'),
         size=opt.max_dataset_size,
         repeat=repeat,
         return_meta=True,
@@ -88,7 +88,7 @@ def main():
                 return None
             if isinstance(meta_val, torch.Tensor):
                 return meta_val[0].cpu().numpy()
-            return np.array(meta_val[0])
+            return np.array(meta_val)
 
         wb_np = _to_numpy(wb)
         ccm_np = _to_numpy(ccm)
@@ -99,21 +99,35 @@ def main():
             arr = packed_tensor.detach()[0].cpu().float().numpy()
             arr = np.clip(arr * gain, 0, 1)
             srgb = process.raw2rgb_v2(arr, wb_np, ccm_np)
-            return (srgb * 255.0).astype(np.uint8)
+            if srgb.ndim == 3 and srgb.shape[0] == 3:
+                srgb = np.transpose(srgb, (1, 2, 0))  # CHW -> HWC
+            return (np.clip(srgb, 0, 1) * 255.0).astype(np.uint8)
 
         lambda_t = float(batch.get("lambda_t", torch.tensor([1.0]))[0])
         lambda_T = float(batch.get("lambda_T", torch.tensor([1.0]))[0])
         lambda_ref = float(batch.get("lambda_ref", torch.tensor([1.0]))[0])
-
+        batch_exposure = batch.get("exposure", None)
+        # print(f"exposure: {batch_exposure} lambdas t -> T -> ref:", lambda_t, lambda_T, lambda_ref)
         gain_T = lambda_ref / max(lambda_T, 1e-6)
         gain_t = lambda_ref / max(lambda_t, 1e-6)
 
         y_srgb = to_srgb(y, gain=gain_T)
         x_t_srgb = to_srgb(x_t, gain=gain_t)
         x_ref_srgb = to_srgb(x_ref, gain=1.0)
-        display_srgb = np.concatenate([y_srgb, x_t_srgb, x_ref_srgb], axis=1).astype(np.uint8)
-        outfile_srgb = output_root_dir / f'vis_v2_srgb_{idx:03d}.png'
-        cv2.imwrite(str(outfile_srgb), display_srgb)
+        srgb_list = []
+        for img in (y_srgb, x_t_srgb, x_ref_srgb):
+            if img is None:
+                continue
+            if img.ndim == 2:
+                img = np.stack([img] * 3, axis=-1)
+            if img.shape[-1] > 3:
+                img = img[..., :3]
+            srgb_list.append(img.astype(np.uint8))
+
+        if len(srgb_list) == 3:
+            display_srgb = np.concatenate(srgb_list, axis=1).astype(np.uint8)
+            outfile_srgb = output_root_dir / f'vis_v2_srgb_{idx:03d}.png'
+            cv2.imwrite(str(outfile_srgb), display_srgb)
 
 
 if __name__ == '__main__':
