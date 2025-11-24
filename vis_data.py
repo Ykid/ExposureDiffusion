@@ -1,19 +1,24 @@
 # Visualize your datasets (for debugging)
 from os.path import join
+from pathlib import Path
+import shutil
 from options.eld.train_options import TrainOptions
 from dataset.lmdb_dataset import LMDBDataset
 import torch
 import dataset.sid_dataset as datasets
-import dataset
 import cv2
 import numpy as np
 import noise
 
 def main():
+    import dataset
+    root = Path(__file__).parent
+    traindir = root / 'datasets' / 'train'
+    output_root_dir = root / 'datasets' / 'vis_data'
+    shutil.rmtree(output_root_dir, ignore_errors=True)
+    output_root_dir.mkdir(parents=True, exist_ok=True)
+
     opt = TrainOptions().parse()
-
-    traindir = './data/Train'
-
     expo_ratio = [100, 250, 300]
     read_expo_ratio = lambda x: float(x.split('_')[-1][:-5])
 
@@ -42,21 +47,21 @@ def main():
         join(traindir, 'SID_Sony_Raw.db'), 
         size=opt.max_dataset_size, repeat=repeat)
 
-    # input_data = datasets.SynDataset(
-    #     LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
-    #     noise_maker=noise_model,
-    #     size=opt.max_dataset_size, repeat=repeat
-    # )
+    input_data = datasets.SynDataset(
+        LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
+        noise_maker=noise_model,
+        size=opt.max_dataset_size, repeat=repeat
+    )
 
     # input_data = datasets.ISPDataset(
     #     LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
     #     noise_maker=None,    
     # )
 
-    camera = 'NikonD850'
-    input_data = LMDBDataset(
-        join(traindir, f'SID_Sony_syn_Raw_{camera}.db'),
-        size=opt.max_dataset_size, repeat=repeat)
+    # camera = 'NikonD850'
+    # input_data = LMDBDataset(
+    #     join(traindir, f'SID_Sony_syn_Raw_{camera}.db'),
+    #     size=opt.max_dataset_size, repeat=repeat)
 
 
     train_dataset = datasets.ELDTrainDataset(target_dataset=target_data, input_datasets=[input_data], size=10, augment=False)
@@ -64,25 +69,26 @@ def main():
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=opt.batchSize, shuffle=True,
-        num_workers=0, pin_memory=True, worker_init_fn=datasets.worker_init_fn)
+        num_workers=0, worker_init_fn=datasets.worker_init_fn)
 
 
     """Main Loop"""
     from models.ELD_model import tensor2im
-
+    np.random.seed(0)
+    count = 0
     for dataset in train_dataloader:
-        np.random.seed()
-
+        if count >= 10:
+            break
         input, target = dataset['input'], dataset['target']
 
         target_image = tensor2im(target, visualize=True)
         input_image = tensor2im(input, visualize=True)
 
         display = np.concatenate([input_image[:,:,::-1], target_image[:,:,::-1]], axis=1).astype(np.uint8)
-        
-        cv2.imshow('display', display)
+        output_file_name = output_root_dir / f'vis_{count:03d}.png'
+        cv2.imwrite(str(output_file_name), display)
+        count += 1
 
-        cv2.waitKey()
 
 if __name__ == '__main__':
     main()
