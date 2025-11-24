@@ -11,14 +11,14 @@ opt = BaseOptions().parse()
 
 cudnn.benchmark = True
 
-datadir = './datasets/SID/Sony'
+datadir = './datasets/SID/Sony_blur_v3'
 
 expo_ratio = ["fill"] # [100, 250, 300] # , 100, 250
 read_expo_ratio = lambda x: float(x.split('_')[-1][:-5])
 
 train_fns = dataset.read_paired_fns('./dataset/Sony_train.txt')
 eval_fns = dataset.read_paired_fns('./dataset/Sony_val.txt')
-test_fns = dataset.read_paired_fns('./dataset/Sony_test_new.txt')
+test_fns = dataset.read_paired_fns('./dataset/Sony_test_new_v2.txt')
 
 
 test_fns_list = [test_fns]
@@ -40,7 +40,7 @@ eval_dataloaders = [torch.utils.data.DataLoader(
 
 
 """Main Loop"""
-engine = Engine(opt)
+engine = Engine(opt, log_to_file=True)
 
 for ratio, dataloader in zip(expo_ratio, eval_dataloaders):
     # if ratio not in [300]: continue
@@ -64,6 +64,6 @@ for ratio, dataloader in zip(expo_ratio, eval_dataloaders):
         # pass
     #engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=0, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
     # engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=True, iter_num=1, savedir=f"images/{opt.model_path.split('/')[-2]}/{ratio}")
-    save_dir = "/home/david.weijiecai/computational_imaging/ExposureDiffusion/output_v2"
+    save_dir = "/home/david.weijiecai/computational_imaging/ExposureDiffusion/output"
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     engine.eval(dataloader, dataset_name='sid_eval_{}'.format(ratio), correct=True, crop=False, iter_num=opt.iter_num, savedir=save_dir) 
