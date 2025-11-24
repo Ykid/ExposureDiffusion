@@ -30,6 +30,9 @@ output/
 output_crop
 **/.ipynb_checkpoints
 output_v2/
+output_original/
 run.log
 run_v2.log
 wandb/
+.env
+.env_debug
