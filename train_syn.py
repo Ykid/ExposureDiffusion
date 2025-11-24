@@ -1,4 +1,5 @@
 from os.path import join
+import re
 from options.eld.train_options import TrainOptions
 from engine import Engine
 import torch
@@ -15,9 +16,10 @@ import wandb
 
 def main():
     opt = TrainOptions().parse()
-    wandb_run = wandb.init(project="ExposureDiffusion", name=opt.name, config=vars(opt))
+    wandb_run = wandb.init(project="ExposureDiffusion", name=opt.name, config=extend_with_env(vars(opt)))
     print("training options:", opt)
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
+    is_debug = int(os.getenv('ED_ENABLE_DEBUG', '0')) == 1
     cudnn.benchmark = True
 
     evaldir = './datasets/SID/Sony'
@@ -52,19 +54,31 @@ def main():
     if opt.stage_out == 'srgb':
         target_data = lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_SRGB_CRF.db'))
     else:
-        target_data = lmdb_dataset.LMDBDataset(
-            join(traindir, 'SID_Sony_Raw.db'),
-            size=opt.max_dataset_size, repeat=repeat)
+        if is_debug:
+            target_data = lmdb_dataset.LMDBDataset(
+                join(traindir, 'SID_Sony_Raw.db'),
+                size=1, repeat=1)
+        else:
+            target_data = lmdb_dataset.LMDBDataset(
+                join(traindir, 'SID_Sony_Raw.db'),
+                size=opt.max_dataset_size, repeat=repeat)
+
     if opt.stage_in == 'srgb':
         input_data = datasets.ISPDataset(
             lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
             noise_maker=noise_model, CRF=CRF)
     else:
-        ## Synthesizing noise on-the-fly by noise model    
-        input_data = datasets.SynDataset(
-            lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
-            noise_maker=noise_model, num_burst=1,
-            size=opt.max_dataset_size, repeat=repeat, continuous_noise=opt.continuous_noise)
+        ## Synthesizing noise on-the-fly by noise model
+        if is_debug:
+            input_data = datasets.SynDataset(
+                lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
+                noise_maker=noise_model, num_burst=1,
+                size=1, repeat=1, continuous_noise=opt.continuous_noise)
+        else:
+            input_data = datasets.SynDataset(
+                lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw.db')),
+                noise_maker=noise_model, num_burst=1,
+                size=opt.max_dataset_size, repeat=repeat, continuous_noise=opt.continuous_noise)
 
         ## Noise generated offline    
         # camera = cameras[opt.include]
@@ -77,17 +91,30 @@ def main():
 
     eval_datasets = [datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF) for fns in eval_fns_list]
 
+    eval_datasets = []
+    for fns in eval_fns_list:
+        if is_debug:
+            ds = datasets.SIDDataset(evaldir, fns, noise_model, size=1, repeat=1, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF)
+        else:
+            ds = datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF)
+        eval_datasets.append(ds)
 
     _prefetch = os.environ.get('ED_PREFETCH_FACTOR', '2')
     try:
         prefetch_factor = int(_prefetch)
     except ValueError:
         prefetch_factor = 1
-
-    train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=opt.batchSize, shuffle=True,
-        num_workers=opt.nThreads, pin_memory=True, worker_init_fn=worker_init_fn,
-        persistent_workers=True, prefetch_factor=prefetch_factor)
+    
+    if is_debug:
+        train_dataloader = torch.utils.data.DataLoader(
+                    train_dataset, batch_size=opt.batchSize, shuffle=True,
+                    num_workers=opt.nThreads, pin_memory=True, worker_init_fn=worker_init_fn,
+                    )
+    else:
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=opt.batchSize, shuffle=True,
+            num_workers=opt.nThreads, pin_memory=True, worker_init_fn=worker_init_fn,
+            persistent_workers=True, prefetch_factor=prefetch_factor)
 
 
     eval_dataloaders = [torch.utils.data.DataLoader(
@@ -118,14 +145,29 @@ def main():
             engine.set_learning_rate(opt.lr/10)
         
         engine.train(train_dataloader)
-        if engine.epoch % 10 == 0:
+        eval_per_n_epoch = int(os.getenv('ED_EVAL_PER_N_EPOCH', '10'))
+        if engine.epoch % eval_per_n_epoch == 0:
             try:
                 print("Eval sid 100:")
                 engine.eval(eval_dataloaders[0], dataset_name='sid_eval_100', correct=True, iter_num=opt.iter_num)
                 print("Eval sid 300:")
                 engine.eval(eval_dataloaders[1], dataset_name='sid_eval_300', correct=True, iter_num=opt.iter_num)
-            except:
-                pass
+            except Exception as e:
+                print("Evaluation failed:", e)
+
+def extend_with_env(config: dict) -> dict:
+    """
+    Extend `config` in-place with selected environment variables.
+
+    Adds any env var whose name starts with:
+    - ED_
+    """
+    pattern = re.compile(r"^(ED_)")
+    for key, value in os.environ.items():
+        if pattern.match(key):
+            config[key] = value
+
+    return config
 
 if __name__ == '__main__':
     main()
