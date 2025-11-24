@@ -102,7 +102,10 @@ def main():
     # engine.eval(eval_dataloaders[0], dataset_name='sid_eval_100', correct=True)
     # engine.eval(eval_dataloaders[2], dataset_name='sid_eval_300', correct=True)
 
-    engine.model.opt.save_epoch_freq = 100
+    try:
+        engine.model.opt.save_epoch_freq = int(os.getenv('ED_SAVE_EPOCH_FREQ', '100'))
+    except ValueError:
+        engine.model.opt.save_epoch_freq = 100
 
     engine.set_learning_rate(opt.lr)
     while engine.epoch < opt.epoch:
