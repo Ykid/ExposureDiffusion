@@ -619,12 +619,12 @@ class SynDatasetV2(BaseDataset):
             rng=self.rng,
         )
         x_blur = apply_kernel_bayer(x_ref, kernel)
-
-        # Sample lambda_T, then set lambda_1 to the midpoint between lambda_ref and lambda_T
-        if self.sample_log_exposure:
-            lambda_T = float(np.exp(self.rng.uniform(np.log(lambda_range[0]), np.log(lambda_range[1]))))
-        else:
-            lambda_T = float(self.rng.uniform(lambda_range[0], lambda_range[1]))
+        print("iso:", iso, "lambda_ref_local:", lambda_ref_local)
+        # Sample lambda_T to mimic ~100-300x amplification (very dark input)
+        # Here we sample the ratio directly and back out lambda_T = lambda_ref / ratio.
+        ratio_T = float(self.rng.uniform(100, 300))
+        lambda_T = float(lambda_ref_local) / ratio_T
+        # Set lambda_t to the midpoint between lambda_ref and lambda_T as per the plan
         lambda_t = 0.5 * (lambda_ref_local + lambda_T)
 
         # Condition measurement at lambda_T, step sample at lambda_t
