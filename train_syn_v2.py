@@ -16,6 +16,8 @@ import wandb
 
 def main():
     opt = TrainOptions().parse()
+    # Plan uses a fixed 2-step exposure schedule; ignore CLI iter_num and force 2.
+    opt.iter_num = 2
     wandb_run = wandb.init(project="ExposureDiffusion", name=opt.name, config=extend_with_env(vars(opt)))
     print("training options:", opt)
     # import pdb; pdb.set_trace()
