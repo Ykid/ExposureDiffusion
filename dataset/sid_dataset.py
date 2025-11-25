@@ -620,13 +620,12 @@ class SynDatasetV2(BaseDataset):
         )
         x_blur = apply_kernel_bayer(x_ref, kernel)
 
-        # print("lambda range:", lambda_range, "exposure:", exposure, "lambda_ref_local:", lambda_ref_local)
-        lambda_t, lambda_T = sample_lambda_pair(
-            lambda_ref=lambda_ref_local,
-            lambda_T_range=lambda_range,
-            log_space=self.sample_log_exposure,
-            rng=self.rng,
-        )
+        # Sample lambda_T, then set lambda_1 to the midpoint between lambda_ref and lambda_T
+        if self.sample_log_exposure:
+            lambda_T = float(np.exp(self.rng.uniform(np.log(lambda_range[0]), np.log(lambda_range[1]))))
+        else:
+            lambda_T = float(self.rng.uniform(lambda_range[0], lambda_range[1]))
+        lambda_t = 0.5 * (lambda_ref_local + lambda_T)
 
         # Condition measurement at lambda_T, step sample at lambda_t
         params_T = self._sample_noise_params(iso, ratio=lambda_ref_local / lambda_T)
