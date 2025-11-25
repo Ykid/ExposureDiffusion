@@ -619,7 +619,7 @@ class SynDatasetV2(BaseDataset):
             rng=self.rng,
         )
         x_blur = apply_kernel_bayer(x_ref, kernel)
-        print("iso:", iso, "lambda_ref_local:", lambda_ref_local)
+        # print("iso:", iso, "lambda_ref_local:", lambda_ref_local)
         # Sample lambda_T to mimic ~100-300x amplification (very dark input)
         # Here we sample the ratio directly and back out lambda_T = lambda_ref / ratio.
         ratio_T = float(self.rng.uniform(100, 300))
