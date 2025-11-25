@@ -565,7 +565,7 @@ class SynDatasetV2(BaseDataset):
                 "saturation_level": 16383 - 800,
                 "ratio": ratio if ratio is not None else self.lambda_ref,
             }
-        print("Sampling noise params for ISO:", iso, "ratio:", ratio if ratio is not None else self.lambda_ref)
+        # print("Sampling noise params for ISO:", iso, "ratio:", ratio if ratio is not None else self.lambda_ref)
         return self.noise_model.sample_params_for_iso(
             ISO=iso,
             ratio=ratio if ratio is not None else self.lambda_ref,
@@ -630,7 +630,7 @@ class SynDatasetV2(BaseDataset):
         # Condition measurement at lambda_T, step sample at lambda_t
         params_T = self._sample_noise_params(iso, ratio=lambda_ref_local / lambda_T)
         params_t = self._sample_noise_params(iso, ratio=lambda_ref_local / lambda_t)
-        print("lambda_T_range:", lambda_T, "lambda_t:", lambda_t, 'lambda_ref_local:', lambda_ref_local)
+        # print("lambda_T_range:", lambda_T, "lambda_t:", lambda_t, 'lambda_ref_local:', lambda_ref_local)
         y = add_poisson_gaussian_noise(
             x_blur * (lambda_T / lambda_ref_local),
             params_T,
