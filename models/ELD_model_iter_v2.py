@@ -39,13 +39,11 @@ class ELDModelIterV2(ELDModelIter):
         synthetic v2 batches (X_t_blur/Y/X_ref/...).
         """
         mode = mode.lower()
-        # Synthetic blur + noise samples from SynDatasetV2
-        if isinstance(data, dict) and 'X_t_blur' in data and 'Y' in data:
-            input = data['X_t_blur']
+        # Synthetic blur + noise samples from SynDatasetV2: use the darkest frame Y as input.
+        if isinstance(data, dict) and 'Y' in data:
+            input = data['Y']
             target = data.get('X_ref', None)
-            condition = data['Y']
             noise_params_T = data.get("noise_params_T", {})
-            # Use provided ratio/K if present; fall back to lambda_ref/lambda_T.
             lambda_ref = data.get('lambda_ref', None)
             lambda_T = data.get('lambda_T', None)
             ratio = noise_params_T.get("ratio", None)
@@ -58,7 +56,6 @@ class ELDModelIterV2(ELDModelIter):
                 input = input.to(device=self.gpu_ids[0])
                 if target is not None:
                     target = target.to(device=self.gpu_ids[0])
-                condition = condition.to(device=self.gpu_ids[0])
                 if self.ratio is not None and not torch.is_tensor(self.ratio):
                     self.ratio = torch.tensor(self.ratio, device=self.gpu_ids[0])
                 if self.K is not None and not torch.is_tensor(self.K):
@@ -66,7 +63,7 @@ class ELDModelIterV2(ELDModelIter):
 
             self.input = input
             self.target = target
-            self.condition = condition
+            self.condition = None
             self.lambda_t = data.get('lambda_t', None)
             self.lambda_T = data.get('lambda_T', None)
             self.lambda_ref = data.get('lambda_ref', None)
@@ -80,8 +77,7 @@ class ELDModelIterV2(ELDModelIter):
         else:
             # Fallback to the original loader behaviour
             super().set_input(data, mode=mode)
-            # Use the noisy input itself as the conditioning measurement
-            self.condition = self.input
+            self.condition = None
             self.lambda_t = data.get('lambda_t', None) if isinstance(data, dict) else None
             self.lambda_T = data.get('lambda_T', None) if isinstance(data, dict) else None
             self.lambda_ref = data.get('lambda_ref', None) if isinstance(data, dict) else None
@@ -192,27 +188,36 @@ class ELDModelIterV2(ELDModelIter):
                 output, metadata = self.netG(net_input)
             return output, metadata
 
-        if self.netG.training:
-            bs = len(self.ratio) if hasattr(self.ratio, "__len__") else 1
-            if bs > 1:
-                ratio, K = self.ratio.tolist(), self.K.to(input_i.device).view(bs,1,1,1).float()
-                ratio_list=torch.tensor([sorted(
-                    set([1]+list(np.random.choice(list(range(2, max(int(r),     iter_num+2))), iter_num, replace=False))+[r])) for r in ratio])
-                ratio_list = ratio_list.to(input_i.device).view(bs,-1,1,1,1).float()
-                ratio=torch.tensor(ratio).to(input_i.device).view(-1,1,1,1).float()
+        # Build a fixed 2-step schedule when lambdas are provided, else fall back to ratio-based sampling.
+        if self.lambda_ref is not None and self.lambda_T is not None:
+            lambda_ref = float(self.lambda_ref)
+            lambda_T = float(self.lambda_T)
+            lambda_1 = 0.5 * (lambda_ref + lambda_T)
+            ratio_list = [lambda_T/lambda_T, lambda_1/lambda_T, lambda_ref/lambda_T]  # normalized so first is 1
+            ratio = ratio_list[-1]
+            K = float(self.K) if self.K is not None else 1.0
+        else:
+            if self.netG.training:
+                bs = len(self.ratio) if hasattr(self.ratio, "__len__") else 1
+                if bs > 1:
+                    ratio, K = self.ratio.tolist(), self.K.to(input_i.device).view(bs,1,1,1).float()
+                    ratio_list=torch.tensor([sorted(
+                        set([1]+list(np.random.choice(list(range(2, max(int(r),     iter_num+2))), iter_num, replace=False))+[r])) for r in ratio])
+                    ratio_list = ratio_list.to(input_i.device).view(bs,-1,1,1,1).float()
+                    ratio=torch.tensor(ratio).to(input_i.device).view(-1,1,1,1).float()
+                else:
+                    ratio = float(self.ratio) if self.ratio is not None else 1.0
+                    K = float(self.K) if self.K is not None else 1.0
+                    max_ratio = max(2, int(np.ceil(ratio)))
+                    ratio_list = sorted(
+                        set([1]+list(np.random.choice(list(range(1, max_ratio)), iter_num, replace=False))+[ratio]))
             else:
                 ratio = float(self.ratio) if self.ratio is not None else 1.0
                 K = float(self.K) if self.K is not None else 1.0
-                max_ratio = max(2, int(np.ceil(ratio)))
-                ratio_list = sorted(
-                    set([1]+list(np.random.choice(list(range(1, max_ratio)), iter_num, replace=False))+[ratio]))
-        else:
-            ratio = float(self.ratio) if self.ratio is not None else 1.0
-            K = float(self.K) if self.K is not None else 1.0
-            if iter_num==0:
-                ratio_list=[1, ratio] # [1,100]
-            else:
-                ratio_list = np.linspace(1,ratio,iter_num+2)
+                if iter_num==0:
+                    ratio_list=[1, ratio] # [1,100]
+                else:
+                    ratio_list = np.linspace(1,ratio,iter_num+2)
 
         self.output_list = []
         iter_steps = len(ratio_list)-1 if not isinstance(ratio_list, torch.Tensor) else ratio_list.shape[1]-1
