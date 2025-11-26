@@ -24,11 +24,15 @@ def main():
     is_debug = int(os.getenv('ED_ENABLE_DEBUG', '0')) == 1
     cudnn.benchmark = True
 
-    evaldir = './datasets/SID/Sony'
+    evaldir = './datasets/SID/Sony_blur_v3'
     traindir = './datasets/train'
 
-    expo_ratio = [100, 300] # [100, 250, 300]
-    read_expo_ratio = lambda x: float(x.split('_')[-1][:-5])
+    if is_debug:
+        expo_ratio = [100] # [100, 250, 300]
+    else:
+        expo_ratio = [100, 300] # [100, 250, 300]
+
+    # read_expo_ratio = lambda x: float(x.split('_')[-1][:-5])
 
     # train_fns = dataset.read_paired_fns('./dataset/Sony_train.txt')
     # eval_fns = dataset.read_paired_fns('./dataset/Sony_val.txt')
@@ -39,9 +43,12 @@ def main():
     # eval_fns_list = [lst_1 + lst_2 for lst_1, lst_2 in zip(eval_fns_list, test_fns_list)]
 
     # evaluate 15 indoor scenes (but you can also evaluate the performance on the whole dataset)
-    indoor_ids = dataset.read_paired_fns('./SID_Sony_15_paired.txt')
+    if is_debug:
+        indoor_ids = dataset.read_paired_fns('./SID_Sony_15_paired_v2_debug.txt')
+    else:
+        indoor_ids = dataset.read_paired_fns('./SID_Sony_15_paired_v2.txt')
     eval_fns_list = [[(fn[0], fn[1]) for fn in indoor_ids if int(fn[2]) == ratio] for ratio in expo_ratio]
-
+    
     cameras = ['CanonEOS5D4', 'CanonEOS70D', 'CanonEOS700D', 'NikonD850', 'SonyA7S2']
     noise_model = noise.NoiseModel(model=opt.noise, include=opt.include)
 
@@ -58,8 +65,7 @@ def main():
     else:
         if is_debug:
             target_data = lmdb_dataset.LMDBDataset(
-                join(traindir, 'SID_Sony_Raw_Meta.db'),
-                size=1, repeat=1)
+                join(traindir, 'SID_Sony_Raw_Meta_Debug.db'))
         else:
             target_data = lmdb_dataset.LMDBDataset(
                 join(traindir, 'SID_Sony_Raw_Meta.db'),
@@ -73,7 +79,7 @@ def main():
         ## Synthesizing noise on-the-fly by noise model
         if is_debug:
             input_data = datasets.SynDatasetV2(
-                lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw_Meta.db'), size=1, repeat=100, return_meta=True),
+                lmdb_dataset.LMDBDataset(join(traindir, 'SID_Sony_Raw_Meta_Debug.db'), return_meta=True),
                 noise_model=noise_model)
         else:
             input_data = datasets.SynDatasetV2(
@@ -89,14 +95,12 @@ def main():
 
     train_dataset = input_data
 
-    eval_datasets = [datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF) for fns in eval_fns_list]
+    # eval_datasets = [datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF) for fns in eval_fns_list]
 
     eval_datasets = []
     for fns in eval_fns_list:
-        if is_debug:
-            ds = datasets.SIDDataset(evaldir, fns, noise_model, size=1, repeat=1, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF)
-        else:
-            ds = datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF)
+        ds = datasets.SIDDataset(evaldir, fns, noise_model, size=None, augment=False, memorize=False, stage_in=opt.stage_in, stage_out=opt.stage_out, gt_wb=opt.gt_wb, CRF=CRF)
+        print("evaluation set size:", len(ds))
         eval_datasets.append(ds)
 
     _prefetch = os.environ.get('ED_PREFETCH_FACTOR', '2')
@@ -148,10 +152,12 @@ def main():
         eval_per_n_epoch = int(os.getenv('ED_EVAL_PER_N_EPOCH', '10'))
         if engine.epoch % eval_per_n_epoch == 0:
             try:
-                print("Eval sid 100:")
-                engine.eval(eval_dataloaders[0], dataset_name='sid_eval_100', correct=True, iter_num=opt.iter_num)
-                print("Eval sid 300:")
-                engine.eval(eval_dataloaders[1], dataset_name='sid_eval_300', correct=True, iter_num=opt.iter_num)
+                if len(eval_dataloaders) >= 1:
+                    print("Eval sid 100:")
+                    engine.eval(eval_dataloaders[0], dataset_name='sid_eval_100', correct=True, iter_num=opt.iter_num)
+                if len(eval_dataloaders) >= 2:
+                    print("Eval sid 300:")
+                    engine.eval(eval_dataloaders[1], dataset_name='sid_eval_300', correct=True, iter_num=opt.iter_num)
             except Exception as e:
                 print("Evaluation failed:", e)
 
