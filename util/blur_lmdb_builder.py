@@ -278,6 +278,24 @@ def create_sony_dataset(num_samples=None): # synthetic data
         srgb=False, 
     )
 
+def create_sony_dataset_debug(num_samples=None): # synthetic data
+    print('create sid sony dataset...')
+    sourcedir = '/home/david.weijiecai/computational_imaging/ExposureDiffusion/datasets/SID/Sony'
+    sourcedir_ = join(sourcedir, 'long')
+
+    fns = read_paired_fns('/home/david.weijiecai/computational_imaging/ExposureDiffusion/dataset/sony_train_debug.txt')
+    fns = list(set([fn[1] for fn in fns]))
+    fns = sorted([join(sourcedir_, fn) for fn in fns])
+    if num_samples is not None:
+        fns = fns[:num_samples]
+
+    create_lmdb_train(
+        fns, join(destdir, 'SID_Sony_Raw_Meta_Debug'),
+        ksize=(4, 512, 512),
+        stride=(4, 512, 512),
+        srgb=False, 
+    )
+
 def create_adobe_dataset(num_samples=None): # synthetic data
     print('create adobe dataset...')
     sourcedir = '/home/Dataset/DatasetYufei/AdobeFiveK/'
@@ -379,7 +397,7 @@ def create_sony_dataset_SRGB_paired(num_samples=None): # paired real data
 
 
 if __name__ == '__main__':        
-    create_sony_dataset()
+    create_sony_dataset_debug()
     # create_adobe_dataset(161) # 161
     # create_sony_dataset_paired()
     # create_sony_dataset_SRGB(10)
