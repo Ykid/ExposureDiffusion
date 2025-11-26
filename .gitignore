@@ -36,3 +36,4 @@ run_v2.log
 wandb/
 .env
 .env_debug
+output_v3

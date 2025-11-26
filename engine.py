@@ -97,7 +97,7 @@ class Engine(object):
                 avg_meters.update(index)
                 
                 util.progress_bar(i, len(val_loader), str(avg_meters))
-                self.log_eval_parameters(avg_meters)
+            self.log_eval_parameters(avg_meters)
                 
         if not opt.no_log:
             util.write_loss(self.writer, join('eval', dataset_name), avg_meters, self.epoch)
