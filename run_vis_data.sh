@@ -8,7 +8,7 @@ fi
 set -a && source .env && set +a
 
 echo $ED_SAVE_EPOCH_FREQ
-python vis_data.py \
+python -m pdb vis_data_v2.py \
         --name sid_Pg_naf2 \
         --include 4 \
         --noise P+g \
@@ -22,5 +22,6 @@ python vis_data.py \
         --continuous_noise \
         --adaptive_loss \
         --netG naf2 \
+        --seed 2025
         # --batchSize 2 \
         # --nThreads 4

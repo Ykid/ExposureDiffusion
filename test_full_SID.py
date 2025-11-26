@@ -18,7 +18,7 @@ read_expo_ratio = lambda x: float(x.split('_')[-1][:-5])
 
 train_fns = dataset.read_paired_fns('./dataset/Sony_train.txt')
 eval_fns = dataset.read_paired_fns('./dataset/Sony_val.txt')
-test_fns = dataset.read_paired_fns('./dataset/Sony_test_new_v2.txt')
+test_fns = dataset.read_paired_fns('./dataset/Sony_test_new_v2.txt') #Sony_test_new_v2_debug.txt
 
 
 test_fns_list = [test_fns]
