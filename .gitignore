@@ -38,3 +38,8 @@ wandb/
 .env_debug
 output_v3
 output_finetuned
+output_original_with_image_stored
+notebooks/test_save_pngs
+checkpoints_finetune/
+checkpoints_finetune_v2/
+checkpoints_debug/
