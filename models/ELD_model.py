@@ -288,6 +288,36 @@ class ELDModelBase(BaseModel):
             res_in = index.quality_assess(input, target, data_range=255)  
 
             if savedir is not None and not crop:
+                # Save the raw model output before postprocessing to sRGB
+                raw_save_name = "raw_output.npy"
+                if self.data_name is not None:
+                    raw_base = os.path.splitext(os.path.basename(self.data_name[0]))[0]
+                    raw_dir = join(savedir, raw_base)
+                else:
+                    raw_dir = savedir
+                os.makedirs(raw_dir, exist_ok=True)
+                raw_tensor = self.output.detach().cpu().squeeze(0).numpy()
+                np.save(join(raw_dir, f"{self.opt.name}_{raw_save_name}"), raw_tensor)
+
+                # Also save a 16-bit TIFF for easier viewing/sharing (use tifffile for 4-channel uint16)
+                raw_tiff = (np.clip(raw_tensor, 0, 1) * 65535).astype(np.uint16)
+                raw_tiff = np.moveaxis(raw_tiff, 0, -1)  # C,H,W -> H,W,C
+                tiff_path = join(raw_dir, f"{self.opt.name}_raw_output.tiff")
+                try:
+                    import tifffile
+                    tifffile.imwrite(tiff_path, raw_tiff)
+                except Exception as e:
+                    print(f"[w] Failed to write 16-bit TIFF ({e}); raw saved as NPY at {raw_dir}")
+                # save file_name pairs
+                file_content = {
+                    "data_name": str(self.data_name[0]),
+                    "gt_raw_path": str(self.rawpath)
+                }
+                write_json(
+                    file_content, 
+                    join(raw_dir, f"{self.opt.name}_file_names.json")
+                )
+                
                 ## raw postprocessing
                 if self.rawpath:
                     if self.cfa == 'bayer':
@@ -563,3 +593,23 @@ class ELDModel(ELDModelBase):
         }
 
         return state_dict
+
+
+def write_json(data: dict, output_path: str) -> None:
+    """
+    Write a JSON-formatted string to disk.
+
+    Parameters
+    ----------
+    json_str : str
+        A string containing valid JSON.
+    output_path : str
+        Path to the file where the JSON should be written.
+    """
+    import json
+    from pathlib import Path
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
