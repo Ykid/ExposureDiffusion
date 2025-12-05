@@ -37,3 +37,4 @@ wandb/
 .env
 .env_debug
 output_v3
+output_finetuned
